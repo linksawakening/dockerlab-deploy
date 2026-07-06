@@ -11,7 +11,7 @@ metadata:
 
 # docker-git-deploy-skill
 
-Agent-side guide for [docker-git-deploy](https://github.com/armstrys/docker-git-deploy). Use this skill when a user wants to set up pull-based GitOps deployment for Docker Compose services on a homelab or production host.
+Agent-side guide for [docker-git-deploy](https://github.com/linksawakening/docker-git-deploy). Use this skill when a user wants to set up pull-based GitOps deployment for Docker Compose services on a homelab or production host.
 
 ## When to use this skill
 
@@ -50,7 +50,7 @@ Ask for:
 
 | Question | Default | Used for |
 |----------|---------|----------|
-| What is the production host name? | none | bootstrap filename, docs |
+| What is the production host name? | none | README filename, docs |
 | Deployment user on host? | `docker-git-deploy` | systemd service user |
 | Deployment directory on host? | `/opt/<host>-deploy` | clone target |
 | Poll interval? | `5min` | systemd timer |
@@ -64,8 +64,9 @@ Ask for:
 Use the framework's generator:
 
 ```bash
-npx skills add https://github.com/armstrys/docker-git-deploy --skill docker-git-deploy -a hermes-agent -g -y --copy
-~/.hermes/skills/devops/docker-git-deploy/scripts/init-deployment.sh
+npx skills add https://github.com/linksawakening/docker-git-deploy --skill docker-git-deploy -a hermes-agent -g -y --copy
+cd ~/.hermes/skills/devops/docker-git-deploy
+./scripts/init-deployment.sh
 ```
 
 Answer the prompts with the user's choices.
@@ -81,14 +82,14 @@ Available catalog:
 
 ### 5. Test locally
 
-In the generated deployment repo:
+In the generated deployment repo, use the framework's CLI directly:
 
 ```bash
-./scripts/validate.sh
-./scripts/test-local.sh
+DOCKER_DEPLOY_REPO_DIR="$PWD" ~/.hermes/skills/devops/docker-git-deploy/scripts/docker-git-deploy validate
+DOCKER_DEPLOY_REPO_DIR="$PWD" ~/.hermes/skills/devops/docker-git-deploy/scripts/docker-git-deploy test
 ```
 
-This validates compose syntax and optionally starts the stack. It does not require a production host.
+Or run `docker compose config` directly.
 
 ### 6. Push the deployment repo
 
@@ -106,7 +107,7 @@ git push -u origin main
 Generate a one-line install command for the user to run as root on the production host:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/armstrys/docker-git-deploy/main/scripts/install.sh | \
+curl -fsSL https://raw.githubusercontent.com/<org>/docker-git-deploy/main/scripts/install.sh | \
   bash -s -- \
     --deployment-repo https://github.com/<org>/<repo>.git \
     --deployment-dir /opt/<host>-deploy \
@@ -117,7 +118,7 @@ curl -fsSL https://raw.githubusercontent.com/armstrys/docker-git-deploy/main/scr
 If the user prefers SSH:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/armstrys/docker-git-deploy/main/scripts/install.sh | \
+curl -fsSL https://raw.githubusercontent.com/<org>/docker-git-deploy/main/scripts/install.sh | \
   bash -s -- \
     --deployment-repo git@github.com:<org>/<repo>.git \
     --deployment-dir /opt/<host>-deploy \
@@ -148,7 +149,7 @@ Then confirm the timer is active and the first deploy succeeded.
 1. In the deployment repo, create `services/<name>/compose.yaml`.
 2. Add required env vars to `.env.example`.
 3. Add the service to root `compose.yaml`.
-4. Run `./scripts/validate.sh` and `./scripts/test-local.sh`.
+4. Run `docker-git-deploy validate` and `docker-git-deploy test` from the framework.
 5. Commit and push.
 6. The production host will pull and apply on the next timer tick.
 

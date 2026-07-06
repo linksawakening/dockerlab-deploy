@@ -48,13 +48,19 @@ curl -fsSL https://raw.githubusercontent.com/$ORG/docker-git-deploy/main/scripts
 
 Then create \`/opt/$REPO_NAME/.env\` from \`.env.example\`.
 
-## Local validation
+## Validate locally
 
 On a machine with Docker:
 
 \`\`\`bash
-./scripts/validate.sh
-./scripts/test-local.sh
+cd $REPO_NAME
+/usr/local/bin/docker-git-deploy validate
+\`\`\`
+
+Or use the framework's CLI directly:
+
+\`\`\`bash
+DOCKER_DEPLOY_REPO_DIR="\$PWD" /path/to/docker-git-deploy/scripts/docker-git-deploy validate
 \`\`\`
 EOF
 

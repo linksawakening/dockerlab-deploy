@@ -11,16 +11,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Validate shell scripts
-        run: |
-          for script in scripts/*.sh; do
-            bash -n "$script"
-          done
       - name: Validate compose syntax
-        run: |
-          docker compose config
+        run: docker compose config >/dev/null
         env:
-          # Provide placeholder values so compose config can resolve ${VAR}
           EXAMPLE_IMAGE: nginx:alpine
           EXAMPLE_PORT: 8080
           EXAMPLE_FOO: default

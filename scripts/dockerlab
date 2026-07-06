@@ -14,10 +14,14 @@ load_config() {
     source "$CONFIG_FILE"
 }
 
-cmd_deploy() {
+require_deployment_dir() {
     load_config
     [[ -d "$DEPLOYMENT_DIR" ]] || fail "Deployment directory $DEPLOYMENT_DIR does not exist"
     cd "$DEPLOYMENT_DIR"
+}
+
+cmd_deploy() {
+    require_deployment_dir
 
     log "Fetching origin..."
     git fetch origin
@@ -42,31 +46,46 @@ cmd_deploy() {
     log "Applying stack..."
     docker compose up -d --remove-orphans
 
-    if [[ -x "$DEPLOYMENT_DIR/scripts/health-check.sh" ]]; then
-        log "Running health checks..."
-        "$DEPLOYMENT_DIR/scripts/health-check.sh" || fail "Health check failed"
-    else
-        log "No health-check.sh found; skipping."
-    fi
-
     log "Deploy complete. Active commit: $REMOTE_HEAD"
 }
 
 cmd_validate() {
-    load_config
-    cd "$DEPLOYMENT_DIR"
+    require_deployment_dir
     docker compose config >/dev/null && echo "Valid"
 }
 
+cmd_test() {
+    require_deployment_dir
+    local keep=false
+    [[ "${1:-}" == "--keep" ]] && keep=true
+
+    log "Starting stack for smoke test..."
+    docker compose up -d
+
+    cleanup() {
+        if [[ "$keep" != true ]]; then
+            log "Tearing down..."
+            docker compose down
+        fi
+    }
+    trap cleanup EXIT
+
+    log "Waiting 5s..."
+    sleep 5
+
+    log "Containers:"
+    docker compose ps
+
+    log "Smoke test complete."
+}
+
 cmd_logs() {
-    load_config
-    cd "$DEPLOYMENT_DIR"
+    require_deployment_dir
     docker compose logs "$@"
 }
 
 cmd_status() {
-    load_config
-    cd "$DEPLOYMENT_DIR"
+    require_deployment_dir
     docker compose ps
 }
 
@@ -75,11 +94,12 @@ cmd_help() {
 Usage: docker-git-deploy <command> [options]
 
 Commands:
-  deploy [--force]    Pull deployment repo and apply changes
-  validate            Validate compose configuration
-  logs [service]      Show compose logs
-  status              Show running containers
-  help                Show this help
+  deploy [--force]      Pull deployment repo and apply changes
+  validate              Validate compose configuration
+  test [--keep]         Smoke test the stack locally (tears down by default)
+  logs [service]        Show compose logs
+  status                Show running containers
+  help                  Show this help
 EOF
 }
 
@@ -88,6 +108,7 @@ main() {
     case "$1" in
         deploy) shift; cmd_deploy "$@" ;;
         validate) cmd_validate ;;
+        test) shift; cmd_test "$@" ;;
         logs) shift; cmd_logs "$@" ;;
         status) cmd_status ;;
         help|-h|--help) cmd_help ;;

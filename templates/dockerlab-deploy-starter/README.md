@@ -16,6 +16,6 @@ This is the smallest possible deployment repo. Replace with your services.
 1. Add service compose files under `services/<name>/compose.yaml`.
 2. Include them in root `compose.yaml`.
 3. Add required env vars to `.env.example`.
-4. Run `./scripts/validate.sh` and `./scripts/test-local.sh` before pushing.
+4. Validate with the docker-git-deploy tool or standard Docker Compose commands.
 
 The bootstrap command is in the generated README for the target host.
