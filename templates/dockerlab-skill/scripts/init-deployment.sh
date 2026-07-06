@@ -1,10 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
-# Agent-side helper to generate a docker-git-deploy deployment repo.
+# init-deployment.sh
+# Generate a lightweight deployment repo from the starter.
 # Usage: ./scripts/init-deployment.sh
 
-FRAMEWORK_SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+FRAMEWORK_SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STARTER_DIR="$FRAMEWORK_SKILL_DIR/templates/docker-git-deploy-starter"
 
 log() { echo "[docker-git-deploy-skill] $*"; }
@@ -27,46 +28,29 @@ TARGET_DIR="$(cd "$(dirname "$TARGET_DIR")" && pwd)/$(basename "$TARGET_DIR")"
 
 cp -r "$STARTER_DIR" "$TARGET_DIR"
 
-# Add bootstrap script
-BOOTSTRAP="$TARGET_DIR/bootstrap-$HOST_NAME.sh"
-cat > "$BOOTSTRAP" <<EOF
-#!/bin/bash
-# One-time bootstrap for $HOST_NAME.
-# Run as root on $HOST_NAME.
-
-set -euo pipefail
-
-FRAMEWORK_DIR="/opt/docker-git-deploy"
-if [[ ! -d "\$FRAMEWORK_DIR" ]]; then
-    git clone https://github.com/$ORG/docker-git-deploy.git "\$FRAMEWORK_DIR"
-fi
-
-"\$FRAMEWORK_DIR/scripts/install.sh" \\
-    --deployment-repo https://github.com/$ORG/$REPO_NAME.git \\
-    --deployment-dir /opt/$REPO_NAME \\
-    --user docker-git-deploy \\
-    --interval 5min
-
-echo "Install complete. Create /opt/$REPO_NAME/.env from .env.example."
-EOF
-chmod +x "$BOOTSTRAP"
-
 cat > "$TARGET_DIR/README.md" <<EOF
 # $REPO_NAME
 
 Docker Git deployment configuration for $HOST_NAME.
 
-## Bootstrap
+## Bootstrap on $HOST_NAME
 
-Run as root on $HOST_NAME:
+Run as root:
 
 \`\`\`bash
-./bootstrap-$HOST_NAME.sh
+curl -fsSL https://raw.githubusercontent.com/$ORG/docker-git-deploy/main/scripts/install.sh | \\
+  bash -s -- \\
+    --deployment-repo https://github.com/$ORG/$REPO_NAME.git \\
+    --deployment-dir /opt/$REPO_NAME \\
+    --user docker-git-deploy \\
+    --interval 5min
 \`\`\`
 
-Then create \`.env\` from \`.env.example\`.
+Then create \`/opt/$REPO_NAME/.env\` from \`.env.example\`.
 
 ## Local validation
+
+On a machine with Docker:
 
 \`\`\`bash
 ./scripts/validate.sh
@@ -76,4 +60,4 @@ EOF
 
 log "Created $TARGET_DIR"
 log "Push to GitHub: https://github.com/$ORG/$REPO_NAME"
-log "Give bootstrap-$HOST_NAME.sh to the user to run on $HOST_NAME"
+log "Give the README bootstrap command to the user to run on $HOST_NAME"

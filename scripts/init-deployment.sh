@@ -5,75 +5,52 @@ set -euo pipefail
 # Generate a lightweight deployment repo from the starter.
 # Usage: ./scripts/init-deployment.sh
 
-FRAMEWORK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-STARTER_DIR="$FRAMEWORK_DIR/templates/docker-git-deploy-starter"
+FRAMEWORK_SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+STARTER_DIR="$FRAMEWORK_SKILL_DIR/templates/docker-git-deploy-starter"
 
 log() { echo "[docker-git-deploy] $*"; }
+fail() { log "ERROR: $*"; exit 1; }
 
-if [[ ! -d "$STARTER_DIR" ]]; then
-    log "ERROR: starter template not found at $STARTER_DIR"
-    exit 1
-fi
+[[ -d "$STARTER_DIR" ]] || fail "starter template not found at $STARTER_DIR"
 
-[[ -z "${TARGET_DIR:-}" ]] && read -rp "Target directory (e.g. ./ribeedocker-deploy): " TARGET_DIR
-[[ -z "${REPO_NAME:-}" ]] && read -rp "GitHub repo name (e.g. ribeedocker-deploy): " REPO_NAME
-[[ -z "${HOST_NAME:-}" ]] && read -rp "Production host name (e.g. ribeedocker): " HOST_NAME
+[[ -z "${TARGET_DIR:-}" ]] && read -rp "Target directory for deployment repo: " TARGET_DIR
+[[ -z "${REPO_NAME:-}" ]] && read -rp "GitHub repo name: " REPO_NAME
+[[ -z "${HOST_NAME:-}" ]] && read -rp "Production host name: " HOST_NAME
+[[ -z "${ORG:-}" ]] && read -rp "GitHub org/user: " ORG
 
-[[ -z "$TARGET_DIR" ]] && { log "ERROR: TARGET_DIR required"; exit 1; }
-[[ -z "$REPO_NAME" ]] && { log "ERROR: REPO_NAME required"; exit 1; }
+[[ -z "$TARGET_DIR" ]] && fail "TARGET_DIR is required"
+[[ -z "$REPO_NAME" ]] && fail "REPO_NAME is required"
+[[ -z "$HOST_NAME" ]] && fail "HOST_NAME is required"
+[[ -z "$ORG" ]] && fail "ORG is required"
 
 TARGET_DIR="$(cd "$(dirname "$TARGET_DIR")" && pwd)/$(basename "$TARGET_DIR")"
-[[ -e "$TARGET_DIR" ]] && { log "ERROR: $TARGET_DIR already exists"; exit 1; }
+[[ -e "$TARGET_DIR" ]] && fail "$TARGET_DIR already exists"
 
 cp -r "$STARTER_DIR" "$TARGET_DIR"
-
-BOOTSTRAP="$TARGET_DIR/bootstrap-$HOST_NAME.sh"
-cat > "$BOOTSTRAP" <<EOF
-#!/bin/bash
-# One-time bootstrap for $HOST_NAME.
-# Run as root on $HOST_NAME.
-
-set -euo pipefail
-
-# 1. Clone the framework repo (or use curl install)
-FRAMEWORK_DIR="/opt/docker-git-deploy"
-if [[ ! -d "\$FRAMEWORK_DIR" ]]; then
-    git clone https://github.com/YOUR_ORG/docker-git-deploy.git "\$FRAMEWORK_DIR"
-fi
-
-# 2. Install docker-git-deploy, pointing at this deployment repo
-"\$FRAMEWORK_DIR/scripts/install.sh" \\
-    --deployment-repo https://github.com/YOUR_ORG/$REPO_NAME.git \\
-    --deployment-dir /opt/$REPO_NAME \\
-    --user docker-git-deploy \\
-    --interval 5min
-
-# 3. Create real .env
-cp /opt/$REPO_NAME/.env.example /opt/$REPO_NAME/.env
-nano /opt/$REPO_NAME/.env
-
-# 4. Verify
-systemctl list-timers docker-git-deploy.timer
-journalctl -u docker-git-deploy.service -f
-EOF
-chmod +x "$BOOTSTRAP"
 
 cat > "$TARGET_DIR/README.md" <<EOF
 # $REPO_NAME
 
 Docker Git deployment configuration for $HOST_NAME.
 
-## Bootstrap
+## Bootstrap on $HOST_NAME
 
-Run on $HOST_NAME as root:
+Run as root:
 
 \`\`\`bash
-./$BOOTSTRAP
+curl -fsSL https://raw.githubusercontent.com/$ORG/docker-git-deploy/main/scripts/install.sh | \\
+  bash -s -- \\
+    --deployment-repo https://github.com/$ORG/$REPO_NAME.git \\
+    --deployment-dir /opt/$REPO_NAME \\
+    --user docker-git-deploy \\
+    --interval 5min
 \`\`\`
 
-Or install manually using the docker-git-deploy framework.
+Then create \`/opt/$REPO_NAME/.env\` from \`.env.example\`.
 
 ## Local validation
+
+On a machine with Docker:
 
 \`\`\`bash
 ./scripts/validate.sh
@@ -82,4 +59,5 @@ Or install manually using the docker-git-deploy framework.
 EOF
 
 log "Created $TARGET_DIR"
-log "Review $BOOTSTRAP, then push to GitHub as $REPO_NAME"
+log "Push to GitHub: https://github.com/$ORG/$REPO_NAME"
+log "Give the README bootstrap command to the user to run on $HOST_NAME"

@@ -17,3 +17,5 @@ This is the smallest possible deployment repo. Replace with your services.
 2. Include them in root `compose.yaml`.
 3. Add required env vars to `.env.example`.
 4. Run `./scripts/validate.sh` and `./scripts/test-local.sh` before pushing.
+
+The bootstrap command is in the generated README for the target host.
