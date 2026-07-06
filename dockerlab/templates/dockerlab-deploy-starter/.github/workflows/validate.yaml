@@ -1,0 +1,19 @@
+name: Validate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate compose syntax
+        run: docker compose config >/dev/null
+        env:
+          EXAMPLE_IMAGE: nginx:alpine
+          EXAMPLE_PORT: 8080
+          EXAMPLE_FOO: default

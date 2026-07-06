@@ -20,12 +20,20 @@ Agent-side guide for [docker-git-deploy](https://github.com/linksawakening/docke
 - User wants to add/update/remove a service on a docker-git-deploy-managed host.
 - User reports that the production host is not deploying changes.
 
+## Install the skill
+
+```bash
+npx skills add https://github.com/linksawakening/docker-git-deploy --skill docker-git-deploy-skill -a hermes-agent -g -y --copy
+```
+
+Then follow this guide to interview the user, generate the deployment repo, test locally, and provide production install commands.
+
 ## What docker-git-deploy is
 
 A lightweight GitOps tool:
 
-- **Framework repo** (`docker-git-deploy`): installed once on the production host. It polls a deployment repo and runs `docker compose`.
-- **Deployment repo** (e.g. `ribeedocker-deploy`): pure configuration — `compose.yaml`, `.env.example`, `services/`.
+- **Framework repo** (`docker-git-deploy`) is installed once on the production host. It polls a deployment repo and runs `docker compose`.
+- **Deployment repo** (e.g. `ribeedocker-deploy`) is pure configuration — `compose.yaml`, `.env.example`, `services/`.
 - The agent edits the deployment repo; the production host pulls changes and applies them.
 
 The agent never needs SSH/Docker access to the production host after the one-line bootstrap.
@@ -42,7 +50,7 @@ Before anything else, the target host must have:
 - git, curl
 - Outbound HTTPS to GitHub
 
-Tell the user the agent cannot install these on the production host; the host administrator must provide them. Point them to the framework's `references/prerequisites.md`.
+Tell the user the agent cannot install these on the production host; the host administrator must provide them. Point them to the framework's `docker-git-deploy/references/prerequisites.md`.
 
 ### 2. Interview the user
 
@@ -64,29 +72,31 @@ Ask for:
 Use the framework's generator:
 
 ```bash
-npx skills add https://github.com/linksawakening/docker-git-deploy --skill docker-git-deploy -a hermes-agent -g -y --copy
+npx skills add https://github.com/linksawakening/docker-git-deploy --skill docker-git-deploy-skill -a hermes-agent -g -y --copy
 cd ~/.hermes/skills/devops/docker-git-deploy
-./scripts/init-deployment.sh
+./docker-git-deploy/scripts/init-deployment.sh
 ```
 
 Answer the prompts with the user's choices.
 
 ### 4. Add service definitions
 
-Copy service templates from `~/.hermes/skills/devops/docker-git-deploy/templates/services/<name>/` into the new deployment repo's `services/` directory. Update root `compose.yaml` to include them. Update `.env.example` with required variables.
+Copy service templates from `~/.hermes/skills/devops/docker-git-deploy/docker-git-deploy/templates/services/<name>/` into the new deployment repo's `services/` directory. Update root `compose.yaml` to include them. Update `.env.example` with required variables.
 
 Available catalog:
 
-- `templates/services/searxng/` — SearXNG meta-search engine
-- `templates/services/example-service/` — minimal nginx example
+- `docker-git-deploy/templates/services/searxng/` — SearXNG meta-search engine
+- `docker-git-deploy/templates/services/example-service/` — minimal nginx example
 
 ### 5. Test locally
 
 In the generated deployment repo, use the framework's CLI directly:
 
 ```bash
-DOCKER_DEPLOY_REPO_DIR="$PWD" ~/.hermes/skills/devops/docker-git-deploy/scripts/docker-git-deploy validate
-DOCKER_DEPLOY_REPO_DIR="$PWD" ~/.hermes/skills/devops/docker-git-deploy/scripts/docker-git-deploy test
+FRAMEWORK_DIR=~/.hermes/skills/devops/docker-git-deploy/docker-git-deploy \
+"$FRAMEWORK_DIR/scripts/docker-git-deploy" validate
+FRAMEWORK_DIR=~/.hermes/skills/devops/docker-git-deploy/docker-git-deploy \
+"$FRAMEWORK_DIR/scripts/docker-git-deploy" test
 ```
 
 Or run `docker compose config` directly.
@@ -107,23 +117,23 @@ git push -u origin main
 Generate a one-line install command for the user to run as root on the production host:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/<org>/docker-git-deploy/main/scripts/install.sh | \
-  bash -s -- \
-    --deployment-repo https://github.com/<org>/<repo>.git \
-    --deployment-dir /opt/<host>-deploy \
-    --user docker-git-deploy \
-    --interval 5min
+curl -fsSL https://raw.githubusercontent.com/<org>/docker-git-deploy/main/docker-git-deploy/scripts/install.sh | \
+bash -s -- \
+ --deployment-repo https://github.com/<org>/<repo>.git \
+ --deployment-dir /opt/<host>-deploy \
+ --user docker-git-deploy \
+ --interval 5min
 ```
 
 If the user prefers SSH:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/<org>/docker-git-deploy/main/scripts/install.sh | \
-  bash -s -- \
-    --deployment-repo git@github.com:<org>/<repo>.git \
-    --deployment-dir /opt/<host>-deploy \
-    --user docker-git-deploy \
-    --interval 5min
+curl -fsSL https://raw.githubusercontent.com/<org>/docker-git-deploy/main/docker-git-deploy/scripts/install.sh | \
+bash -s -- \
+ --deployment-repo git@github.com:<org>/<repo>.git \
+ --deployment-dir /opt/<host>-deploy \
+ --user docker-git-deploy \
+ --interval 5min
 ```
 
 Then the user must:
@@ -170,6 +180,6 @@ Then confirm the timer is active and the first deploy succeeded.
 
 ## References
 
-- `references/agent-flow.md` — decision tree for the agent
-- `references/production-install.md` — copy-paste install commands
-- `references/service-catalog.md` — service definitions and their requirements
+- `docker-git-deploy/references/agent-flow.md` — decision tree for the agent
+- `docker-git-deploy/references/production-install.md` — copy-paste install commands
+- `docker-git-deploy/references/service-catalog.md` — service definitions and their requirements

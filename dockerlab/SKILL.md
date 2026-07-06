@@ -12,9 +12,14 @@ metadata:
 
 Deploy Docker Compose services from a Git repository using a **pull-based GitOps** model.
 
-The **framework repo** (`docker-git-deploy`) is the tool. It is installed once on each production host. The **deployment repo** is pure configuration: just `compose.yaml`, `.env`, and service definitions.
+This repository is **both**:
 
-> **For agents:** see `templates/docker-git-deploy-skill/SKILL.md` for the agent-side adoption guide.
+1. A **framework/tool** under `docker-git-deploy/` — install once per production host.
+2. A **canonical deployment example** at the top level — real compose configuration that installs the framework and points to itself.
+
+For a separate deployment repo, copy the top-level files (or use the generator in `docker-git-deploy/scripts/init-deployment.sh`) and point the framework at that repo.
+
+> **For agents:** see `docker-git-deploy/templates/docker-git-deploy-skill/SKILL.md` for the agent-side adoption guide.
 
 ## Core architecture
 
@@ -25,24 +30,49 @@ The **framework repo** (`docker-git-deploy`) is the tool. It is installed once o
 │  only           │          │   services)         │          │  timer runs deploy  │
 └─────────────────┘          └─────────────────────┘          └─────────────────────┘
         │                                                            │
-        └────────────────── framework repo ──────────────────────────┘
-                    (deploy.sh, install.sh, systemd units, agent skill)
+        └───────────── framework docker-git-deploy/ ─────────────────────────┘
+             (install.sh, docker-git-deploy CLI, deploy.sh, systemd units, skill)
 ```
 
-## Repos
+## Layout
 
-| Repo | Contains | Where it runs |
-|------|----------|---------------|
-| `docker-git-deploy` | Tooling, install script, deploy script, systemd units, docs, agent skill | Installed on production host; used by agent |
-| `docker-git-deploy-example-deploy` | `compose.yaml`, `.env.example`, `services/` | Cloned to production host by the tool |
+```
+docker-git-deploy/                    # GitHub repo = canonical deployment example
+├── compose.yaml                     # example deployment services
+├── .env.example
+├── .gitignore
+├── services/searxng/
+├── README.md
+├── .github/workflows/
+│   ├── install-test.yaml           # CI: test install.sh against this repo
+│   └── validate.yaml               # CI: validate compose
+└── docker-git-deploy/                       # framework + agent skill
+    ├── SKILL.md
+    ├── scripts/
+    │   ├── install.sh             # one-command production install
+    │   ├── docker-git-deploy              # CLI entrypoint
+    │   ├── deploy.sh              # deploy hook (used by systemd)
+    │   └── init-deployment.sh     # generator for separate deployment repos
+    ├── templates/
+    │   ├── docker-git-deploy-starter/   # minimal separate-deployment starter
+    │   ├── docker-git-deploy-skill/             # agent adoption guide
+    │   ├── services/                    # service catalog
+    │   └── systemd/                    # systemd units
+    └── references/
+        ├── prerequisites.md
+        ├── security-model.md
+        └── troubleshooting.md
+```
 
 ## Production install (one command)
 
+Install this very repo onto a host as both framework and deployment:
+
 ```bash
-curl -fsSL https://raw.githubusercontent.com/linksawakening/docker-git-deploy/main/scripts/install.sh | \
+curl -fsSL https://raw.githubusercontent.com/linksawakening/docker-git-deploy/main/docker-git-deploy/scripts/install.sh | \
   bash -s -- \
-    --deployment-repo https://github.com/linksawakening/docker-git-deploy-example-deploy.git \
-    --deployment-dir /opt/docker-git-deploy-example-deploy \
+    --deployment-repo https://github.com/linksawakening/docker-git-deploy.git \
+    --deployment-dir /opt/docker-git-deploy \
     --user docker-git-deploy \
     --interval 5min
 ```
@@ -51,10 +81,12 @@ What it does:
 
 1. Checks prerequisites (Docker, git, curl, systemd)
 2. Creates deployment user if missing
-3. Clones deployment repo to specified directory
-4. Writes `/etc/docker-git-deploy/config`
-5. Writes systemd service and timer
-6. Enables and starts the timer
+3. Clones framework to `/opt/docker-git-deploy`
+4. Clones deployment repo to specified directory
+5. Writes `/etc/docker-git-deploy/config`
+6. Installs `docker-git-deploy` CLI to `/usr/local/bin/docker-git-deploy`
+7. Writes systemd service and timer
+8. Enables and starts the timer
 
 ## What the timer does
 
@@ -80,10 +112,10 @@ docker-git-deploy status          # docker compose ps
 docker-git-deploy logs [service]  # docker compose logs
 ```
 
-## Deployment repo layout
+## Deployment repo layout (separate)
 
 ```
-docker-git-deploy-example-deploy/
+my-host-deploy/
 ├── README.md
 ├── .env.example
 ├── .env                       # real values, ignored
@@ -96,24 +128,6 @@ docker-git-deploy-example-deploy/
 
 No deploy logic, no systemd files, no helper scripts. Pure config.
 
-## Framework repo layout
-
-```
-docker-git-deploy/
-├── SKILL.md
-├── scripts/
-│   ├── install.sh             # one-command production install
-│   ├── docker-git-deploy              # CLI entrypoint
-│   ├── deploy.sh              # deploy hook (used by systemd)
-│   └── init-deployment.sh     # framework's own generator
-├── templates/
-│   ├── docker-git-deploy-starter/   # minimal deployment repo
-│   ├── docker-git-deploy-skill/             # agent adoption guide
-│   ├── services/                    # service catalog
-│   └── systemd/                    # systemd units
-└── references/
-```
-
 ## Agent adoption flow
 
 1. **Install the agent skill:**
@@ -122,7 +136,7 @@ docker-git-deploy/
    npx skills add https://github.com/linksawakening/docker-git-deploy --skill docker-git-deploy-skill -a hermes-agent -g -y --copy
    ```
 
-2. **Follow `templates/docker-git-deploy-skill/SKILL.md`** to interview the user, generate the deployment repo, test locally, and provide production install commands.
+2. **Follow `docker-git-deploy/templates/docker-git-deploy-skill/SKILL.md`** to interview the user, generate the deployment repo, test locally, and provide production install commands.
 
 ## Environment handling
 
@@ -142,7 +156,7 @@ docker-git-deploy/
 
 ## References
 
-- `references/prerequisites.md` — target host requirements
-- `references/security-model.md` — keys, scopes, threat model
-- `references/troubleshooting.md` — common failure modes
-- `templates/docker-git-deploy-skill/SKILL.md` — agent adoption guide
+- `docker-git-deploy/references/prerequisites.md` — target host requirements
+- `docker-git-deploy/references/security-model.md` — keys, scopes, threat model
+- `docker-git-deploy/references/troubleshooting.md` — common failure modes
+- `docker-git-deploy/templates/docker-git-deploy-skill/SKILL.md` — agent adoption guide

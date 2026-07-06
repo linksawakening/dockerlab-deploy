@@ -3,10 +3,10 @@ set -euo pipefail
 
 # init-deployment.sh
 # Generate a lightweight deployment repo from the starter.
-# Usage: ./scripts/init-deployment.sh
+# Usage: ./docker-git-deploy/scripts/init-deployment.sh
 
-FRAMEWORK_SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-STARTER_DIR="$FRAMEWORK_SKILL_DIR/templates/docker-git-deploy-starter"
+FRAMEWORK_SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+STARTER_DIR="$FRAMEWORK_SKILL_DIR/docker-git-deploy/templates/docker-git-deploy-starter"
 
 log() { echo "[docker-git-deploy] $*"; }
 fail() { log "ERROR: $*"; exit 1; }
@@ -38,7 +38,7 @@ Docker Git deployment configuration for $HOST_NAME.
 Run as root:
 
 \`\`\`bash
-curl -fsSL https://raw.githubusercontent.com/$ORG/docker-git-deploy/main/scripts/install.sh | \\
+curl -fsSL https://raw.githubusercontent.com/$ORG/docker-git-deploy/main/docker-git-deploy/scripts/install.sh | \\
   bash -s -- \\
     --deployment-repo https://github.com/$ORG/$REPO_NAME.git \\
     --deployment-dir /opt/$REPO_NAME \\
@@ -57,10 +57,11 @@ cd $REPO_NAME
 /usr/local/bin/docker-git-deploy validate
 \`\`\`
 
-Or use the framework's CLI directly:
+Or, before installing the framework, run the framework's CLI directly:
 
 \`\`\`bash
-DOCKER_DEPLOY_REPO_DIR="\$PWD" /path/to/docker-git-deploy/scripts/docker-git-deploy validate
+FRAMEWORK_DIR=/path/to/docker-git-deploy/docker-git-deploy \\
+  \$FRAMEWORK_DIR/scripts/docker-git-deploy validate
 \`\`\`
 EOF
 

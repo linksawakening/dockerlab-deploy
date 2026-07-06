@@ -1,0 +1,45 @@
+name: Install Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  install-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start Docker Compose manually
+        uses: docker/setup-docker-action@v4
+
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Run install.sh against this repo
+        env:
+          SEARXNG_IMAGE: searxng/searxng:latest
+          SEARXNG_PORT: 8080
+          SEARXNG_BASE_URL: http://localhost:8080
+        run: |
+          sudo bash docker-git-deploy/scripts/install.sh \
+            --deployment-repo "file://${PWD}" \
+            --deployment-dir /opt/docker-git-deploy \
+            --user root \
+            --interval 5min
+
+      - name: Verify systemd timer exists
+        run: |
+          systemctl list-timers docker-git-deploy.timer || true
+
+      - name: Verify config
+        run: |
+          cat /etc/docker-git-deploy/config
+
+      - name: Run docker-git-deploy validate
+        run: |
+          sudo /usr/local/bin/docker-git-deploy validate
+
+      - name: Run docker-git-deploy deploy --force
+        run: |
+          sudo /usr/local/bin/docker-git-deploy deploy --force
