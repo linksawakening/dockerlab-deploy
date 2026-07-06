@@ -1,0 +1,36 @@
+general:
+  debug: false
+  instance_name: "docker-git-deploy-searxng"
+  contact_url: false
+  enable_metrics: false
+search:
+  safe_search: 0
+  autocomplete: ""
+  default_lang: ""
+  formats:
+    - html
+    - json
+server:
+  secret_key: ""
+  limiter: false
+  image_proxy: false
+redis:
+  url: false
+ui:
+  static_use_hash: false
+result_proxy:
+  url: ""
+  key: ""
+  proxify_results: false
+outgoing:
+  request_timeout: 10.0
+  max_request_timeout: 15.0
+  pool_connections: 100
+  pool_maxsize: 20
+  enable_http2: true
+  retries: 1
+  proxies:
+    all://:
+      - http://proxy.example.com:8080
+  source_ips:
+    - 0.0.0.0

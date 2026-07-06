@@ -1,0 +1,9 @@
+[Unit]
+Description=Run Docker Git Deploy periodically
+
+[Timer]
+OnBootSec=1min
+OnUnitInactiveSec=5min
+
+[Install]
+WantedBy=timers.target

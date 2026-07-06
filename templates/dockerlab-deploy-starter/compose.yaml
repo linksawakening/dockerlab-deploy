@@ -1,0 +1,4 @@
+name: docker-git-deploy
+
+include:
+  - services/example-service/compose.yaml

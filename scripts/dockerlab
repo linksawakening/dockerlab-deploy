@@ -1,0 +1,98 @@
+#!/bin/bash
+set -euo pipefail
+
+# docker-git-deploy — CLI for docker-git-deploy
+
+CONFIG_FILE="/etc/docker-git-deploy/config"
+
+log() { echo "[docker-git-deploy] $*"; }
+fail() { log "ERROR: $*"; exit 1; }
+
+load_config() {
+    [[ -f "$CONFIG_FILE" ]] || fail "Not installed. Run install.sh first."
+    # shellcheck source=/dev/null
+    source "$CONFIG_FILE"
+}
+
+cmd_deploy() {
+    load_config
+    [[ -d "$DEPLOYMENT_DIR" ]] || fail "Deployment directory $DEPLOYMENT_DIR does not exist"
+    cd "$DEPLOYMENT_DIR"
+
+    log "Fetching origin..."
+    git fetch origin
+
+    CURRENT_HEAD="$(git rev-parse HEAD)"
+    REMOTE_HEAD="$(git rev-parse origin/main)"
+
+    if [[ "$CURRENT_HEAD" == "$REMOTE_HEAD" && "${1:-}" != "--force" ]]; then
+        log "No changes on origin/main. Current: $CURRENT_HEAD"
+        exit 0
+    fi
+
+    log "New commit detected: $CURRENT_HEAD -> $REMOTE_HEAD"
+    git reset --hard "$REMOTE_HEAD"
+
+    log "Validating compose configuration..."
+    docker compose config >/dev/null || fail "docker compose config failed"
+
+    log "Pulling images..."
+    docker compose pull
+
+    log "Applying stack..."
+    docker compose up -d --remove-orphans
+
+    if [[ -x "$DEPLOYMENT_DIR/scripts/health-check.sh" ]]; then
+        log "Running health checks..."
+        "$DEPLOYMENT_DIR/scripts/health-check.sh" || fail "Health check failed"
+    else
+        log "No health-check.sh found; skipping."
+    fi
+
+    log "Deploy complete. Active commit: $REMOTE_HEAD"
+}
+
+cmd_validate() {
+    load_config
+    cd "$DEPLOYMENT_DIR"
+    docker compose config >/dev/null && echo "Valid"
+}
+
+cmd_logs() {
+    load_config
+    cd "$DEPLOYMENT_DIR"
+    docker compose logs "$@"
+}
+
+cmd_status() {
+    load_config
+    cd "$DEPLOYMENT_DIR"
+    docker compose ps
+}
+
+cmd_help() {
+    cat <<EOF
+Usage: docker-git-deploy <command> [options]
+
+Commands:
+  deploy [--force]    Pull deployment repo and apply changes
+  validate            Validate compose configuration
+  logs [service]      Show compose logs
+  status              Show running containers
+  help                Show this help
+EOF
+}
+
+main() {
+    [[ $# -eq 0 ]] && { cmd_help; exit 0; }
+    case "$1" in
+        deploy) shift; cmd_deploy "$@" ;;
+        validate) cmd_validate ;;
+        logs) shift; cmd_logs "$@" ;;
+        status) cmd_status ;;
+        help|-h|--help) cmd_help ;;
+        *) fail "Unknown command: $1" ;;
+    esac
+}
+
+main "$@"
