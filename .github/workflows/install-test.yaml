@@ -19,7 +19,7 @@ jobs:
           SEARXNG_PORT: 8080
           SEARXNG_BASE_URL: http://localhost:8080
         run: |
-          sudo bash docker-git-deploy/scripts/install.sh \
+          sudo bash docker-git-deploy-skill/scripts/install.sh \
             --deployment-repo "file://${PWD}" \
             --deployment-dir /opt/docker-git-deploy \
             --user root \

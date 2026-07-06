@@ -3,10 +3,10 @@ set -euo pipefail
 
 # init-deployment.sh
 # Generate a lightweight deployment repo from the starter.
-# Usage: ./docker-git-deploy/scripts/init-deployment.sh
+# Usage: ./docker-git-deploy-skill/scripts/init-deployment.sh
 
 FRAMEWORK_SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-STARTER_DIR="$FRAMEWORK_SKILL_DIR/docker-git-deploy/templates/docker-git-deploy-starter"
+STARTER_DIR="$FRAMEWORK_SKILL_DIR/docker-git-deploy-skill/templates/docker-git-deploy-starter"
 
 log() { echo "[docker-git-deploy] $*"; }
 fail() { log "ERROR: $*"; exit 1; }
@@ -37,32 +37,32 @@ Docker Git deployment configuration for $HOST_NAME.
 
 Run as root:
 
-\`\`\`bash
-curl -fsSL https://raw.githubusercontent.com/$ORG/docker-git-deploy/main/docker-git-deploy/scripts/install.sh | \\
-  bash -s -- \\
-    --deployment-repo https://github.com/$ORG/$REPO_NAME.git \\
-    --deployment-dir /opt/$REPO_NAME \\
-    --user docker-git-deploy \\
+```bash
+curl -fsSL https://raw.githubusercontent.com/$ORG/docker-git-deploy/main/docker-git-deploy-skill/scripts/install.sh | \
+  bash -s -- \
+    --deployment-repo https://github.com/$ORG/$REPO_NAME.git \
+    --deployment-dir /opt/$REPO_NAME \
+    --user docker-git-deploy \
     --interval 5min
-\`\`\`
+```
 
-Then create \`/opt/$REPO_NAME/.env\` from \`.env.example\`.
+Then create `/opt/$REPO_NAME/.env` from `.env.example`.
 
 ## Validate locally
 
 On a machine with Docker:
 
-\`\`\`bash
+```bash
 cd $REPO_NAME
 /usr/local/bin/docker-git-deploy validate
-\`\`\`
+```
 
 Or, before installing the framework, run the framework's CLI directly:
 
-\`\`\`bash
-FRAMEWORK_DIR=/path/to/docker-git-deploy/docker-git-deploy \\
-  \$FRAMEWORK_DIR/scripts/docker-git-deploy validate
-\`\`\`
+```bash
+FRAMEWORK_DIR=/path/to/docker-git-deploy/docker-git-deploy-skill \
+  $FRAMEWORK_DIR/scripts/docker-git-deploy validate
+```
 EOF
 
 log "Created $TARGET_DIR"

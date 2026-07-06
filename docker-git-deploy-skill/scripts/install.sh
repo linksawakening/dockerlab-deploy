@@ -4,13 +4,13 @@ set -euo pipefail
 # install.sh
 # One-command install of docker-git-deploy on a production host.
 # Usage:
-#   curl -fsSL https://.../docker-git-deploy/scripts/install.sh | bash -s -- [options]
+#   curl -fsSL https://.../docker-git-deploy-skill/scripts/install.sh | bash -s -- [options]
 # Or locally:
-#   sudo ./docker-git-deploy/scripts/install.sh [options]
+#   sudo ./docker-git-deploy-skill/scripts/install.sh [options]
 
 FRAMEWORK_REPO_DEFAULT="https://github.com/linksawakening/docker-git-deploy.git"
 FRAMEWORK_REPO="${FRAMEWORK_REPO:-$FRAMEWORK_REPO_DEFAULT}"
-FRAMEWORK_DIR="${FRAMEWORK_DIR:-/opt/docker-git-deploy}"
+FRAMEWORK_DIR="${FRAMEWORK_DIR:-/opt/docker-git-deploy-skill}"
 DEPLOYMENT_REPO="${DEPLOYMENT_REPO:-}"
 DEPLOYMENT_DIR="${DEPLOYMENT_DIR:-}"
 DEPLOY_USER="${DEPLOY_USER:-docker-git-deploy}"
@@ -75,7 +75,7 @@ fi
 # source. This is used in CI and for local development.
 SCRIPT_PATH="${BASH_SOURCE[0]}"
 if [[ -f "$SCRIPT_PATH" ]]; then
-    LOCAL_FRAMEWORK_DIR="$(cd "$(dirname "$SCRIPT_PATH")/../.." && pwd)/docker-git-deploy"
+    LOCAL_FRAMEWORK_DIR="$(cd "$(dirname "$SCRIPT_PATH")/../.." && pwd)/docker-git-deploy-skill"
     if [[ -d "$LOCAL_FRAMEWORK_DIR" && -f "$LOCAL_FRAMEWORK_DIR/scripts/docker-git-deploy" ]]; then
         FRAMEWORK_DIR="$LOCAL_FRAMEWORK_DIR"
         FRAMEWORK_REPO="local"
