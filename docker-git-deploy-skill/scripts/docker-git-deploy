@@ -1,9 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 
-# docker-git-deploy — CLI for docker-git-deploy
+# docker-git-deploy — CLI for docker-git-deploy.
+# The systemd timer calls `docker-git-deploy deploy`. All deploy logic lives
+# here (single source of truth).
 
 CONFIG_FILE="/etc/docker-git-deploy/config"
+WAIT_TIMEOUT="${WAIT_TIMEOUT:-120}"
 
 log() { echo "[docker-git-deploy] $*"; }
 fail() { log "ERROR: $*"; exit 1; }
@@ -18,35 +21,61 @@ require_deployment_dir() {
     load_config
     [[ -d "$DEPLOYMENT_DIR" ]] || fail "Deployment directory $DEPLOYMENT_DIR does not exist"
     cd "$DEPLOYMENT_DIR"
+    git rev-parse --git-dir >/dev/null 2>&1 || fail "$DEPLOYMENT_DIR is not a git repository"
+}
+
+# Bring the stack to its declared state and wait for health. Returns non-zero
+# if the stack does not converge within WAIT_TIMEOUT.
+reconcile() {
+    docker compose up -d --remove-orphans --wait --wait-timeout "$WAIT_TIMEOUT"
 }
 
 cmd_deploy() {
     require_deployment_dir
+    local force="${1:-}"
 
     log "Fetching origin..."
-    git fetch origin
+    git fetch --quiet origin
 
-    CURRENT_HEAD="$(git rev-parse HEAD)"
-    REMOTE_HEAD="$(git rev-parse origin/main)"
+    local current remote changed=false
+    current="$(git rev-parse HEAD)"
+    remote="$(git rev-parse origin/main)"
 
-    if [[ "$CURRENT_HEAD" == "$REMOTE_HEAD" && "${1:-}" != "--force" ]]; then
-        log "No changes on origin/main. Current: $CURRENT_HEAD"
-        exit 0
+    if [[ "$current" != "$remote" ]]; then
+        changed=true
+        log "New commit on origin/main: $current -> $remote"
+        git reset --hard "$remote"
+    else
+        log "Repo already at $current."
     fi
-
-    log "New commit detected: $CURRENT_HEAD -> $REMOTE_HEAD"
-    git reset --hard "$REMOTE_HEAD"
 
     log "Validating compose configuration..."
     docker compose config >/dev/null || fail "docker compose config failed"
 
-    log "Pulling images..."
-    docker compose pull
+    # Pull images only when the commit changed or a redeploy was forced.
+    if [[ "$changed" == true || "$force" == "--force" ]]; then
+        log "Pulling images..."
+        docker compose pull --quiet || fail "docker compose pull failed"
+    fi
 
-    log "Applying stack..."
-    docker compose up -d --remove-orphans
+    # Always reconcile so the stack converges even when the commit is unchanged
+    # (e.g. the first deploy after install, or a container that has crashed).
+    log "Applying stack (up --wait, timeout ${WAIT_TIMEOUT}s)..."
+    if reconcile; then
+        log "Deploy complete. Active commit: $(git rev-parse HEAD)"
+        return 0
+    fi
 
-    log "Deploy complete. Active commit: $REMOTE_HEAD"
+    log "ERROR: stack did not become healthy."
+    if [[ "$changed" == true ]]; then
+        log "Rolling back to previous commit $current..."
+        git reset --hard "$current"
+        if reconcile; then
+            fail "Deploy of $remote failed; rolled back to $current."
+        fi
+        fail "Deploy failed AND rollback did not converge. Manual intervention needed: docker compose logs"
+    fi
+    fail "Deploy failed. Review: docker-git-deploy logs"
 }
 
 cmd_validate() {
@@ -59,56 +88,42 @@ cmd_test() {
     local keep=false
     [[ "${1:-}" == "--keep" ]] && keep=true
 
-    log "Starting stack for smoke test..."
-    docker compose up -d
-
-    cleanup() {
-        if [[ "$keep" != true ]]; then
-            log "Tearing down..."
-            docker compose down
-        fi
-    }
+    cleanup() { [[ "$keep" == true ]] || { log "Tearing down..."; docker compose down; }; }
     trap cleanup EXIT
 
-    log "Waiting 5s..."
-    sleep 5
-
-    log "Containers:"
+    log "Starting stack for smoke test (up --wait)..."
+    docker compose up -d --wait --wait-timeout "$WAIT_TIMEOUT" || fail "Stack did not become healthy"
     docker compose ps
-
     log "Smoke test complete."
 }
 
-cmd_logs() {
-    require_deployment_dir
-    docker compose logs "$@"
-}
-
-cmd_status() {
-    require_deployment_dir
-    docker compose ps
-}
+cmd_logs() { require_deployment_dir; docker compose logs "$@"; }
+cmd_status() { require_deployment_dir; docker compose ps; }
 
 cmd_help() {
     cat <<EOF
 Usage: docker-git-deploy <command> [options]
 
 Commands:
-  deploy [--force]      Pull deployment repo and apply changes
-  validate              Validate compose configuration
-  test [--keep]         Smoke test the stack locally (tears down by default)
-  logs [service]        Show compose logs
-  status                Show running containers
-  help                  Show this help
+  deploy [--force]   Fetch, reconcile the stack, and wait for health.
+                     --force pulls images and reconciles even with no new commit.
+  validate           Validate the compose configuration.
+  test [--keep]      Smoke test the stack locally (tears down unless --keep).
+  logs [service]     Show compose logs.
+  status             Show running containers.
+  help               Show this help.
+
+Env:
+  WAIT_TIMEOUT       Seconds to wait for health on deploy/test (default: 120).
 EOF
 }
 
 main() {
     [[ $# -eq 0 ]] && { cmd_help; exit 0; }
     case "$1" in
-        deploy) shift; cmd_deploy "$@" ;;
+        deploy) shift; cmd_deploy "${1:-}" ;;
         validate) cmd_validate ;;
-        test) shift; cmd_test "$@" ;;
+        test) shift; cmd_test "${1:-}" ;;
         logs) shift; cmd_logs "$@" ;;
         status) cmd_status ;;
         help|-h|--help) cmd_help ;;

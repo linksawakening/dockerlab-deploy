@@ -1,43 +1,60 @@
 # Design Constraints — docker-git-deploy
 
-These constraints are the result of hard-won architecture decisions during the design of docker-git-deploy. Future edits must preserve them.
+Hard-won architectural guardrails. Future edits must preserve these.
 
-## 1. Deployment repo = pure config
+## 1. The repo is a skill package; the deployment repo is separate
 
-A deployment repo contains **only**:
+This repository is the **skill and its tooling** — nothing more. It has no
+compose config at its root. Everything ships under `docker-git-deploy-skill/`:
 
-- `compose.yaml`
-- `.env.example`
-- `.env` (on the host, ignored in Git)
-- `.gitignore`
-- `README.md`
-- `.github/workflows/` (optional, minimal)
-- `services/<name>/compose.yaml` and service data
+```text
+docker-git-deploy-skill/
+├── SKILL.md
+├── references/
+├── scripts/            # install.sh, docker-git-deploy CLI, init/validate
+└── assets/
+    ├── systemd/        # unit templates (*.in)
+    └── starter/        # the pure-config example == starter == CI fixture
+```
 
-It must **never** contain:
+Real deployments live in a **separate** repo the user owns, generated from
+`assets/starter/` by `scripts/init-deployment.sh`.
 
-- Bootstrap/install scripts
-- `deploy.sh`, `validate.sh`, `health-check.sh`, `test-local.sh`
-- Systemd units or timers
-- Any executable tooling
+## 2. One starter, three roles
 
-All of that belongs in the framework (`docker-git-deploy-skill/`).
+`assets/starter/` is the single canonical example. It is simultaneously:
 
-## 2. Framework lives in a named subfolder
+1. what `init-deployment.sh` copies to seed a user's deployment repo,
+2. the fixture the `install-test` CI workflow deploys, and
+3. the thing that ships with the skill when installed via `npx skills add`.
 
-The framework and agent skill live under a subfolder named after the skill — here, `docker-git-deploy-skill/`. The repo root is reserved for the canonical example deployment.
+Because it lives **inside** the skill folder, it travels with the skill. Never
+reintroduce a second copy at the repo root — that was the bug that broke
+standalone skill installs.
 
-## 3. Canonical example in the same repo, real deployments separate
+## 3. Deployment repos are pure config
 
-This repository is both framework and canonical example. The top-level files are the example deployment; `docker-git-deploy-skill/` is the tool.
+A deployment repo contains **only**: `compose.yaml`, `.env.example`,
+`.gitignore`, `README.md`, optional minimal `.github/workflows/`, and
+`services/<name>/compose.yaml` (+ service data). It must **never** contain
+install/deploy scripts, systemd units, or any executable tooling. All tooling
+lives in the framework. `scripts/validate-repo-structure.sh` enforces this.
 
-For a real production host, generate a **separate** deployment repo using `docker-git-deploy-skill/scripts/init-deployment.sh`.
+## 4. Deploy is a declarative reconcile
 
-## 4. CI must exercise the install path
+`docker-git-deploy deploy` always runs `docker compose up -d --remove-orphans
+--wait`, even when the git commit has not changed, so the stack converges on the
+first tick after install and self-heals crashed containers. Images are pulled
+only when the commit changed or `--force` is passed. `--wait` makes an unhealthy
+stack a deploy failure; a failed update rolls back to the previous commit.
 
-Every change to the framework must be validated by a workflow that runs `docker-git-deploy-skill/scripts/install.sh` against the repo and then invokes `docker-git-deploy validate` and `docker-git-deploy deploy`. Static compose validation alone is not enough.
+## 5. CI must exercise the real install path
 
-Pitfalls learned:
+Every change must pass a workflow that materializes `assets/starter/` into a
+throwaway git repo, runs `install.sh` against it, deploys, and **asserts the
+service is actually up** — not just that compose parses. Static compose
+validation alone is insufficient.
 
-- Do **not** use `docker/setup-docker-action@v4` in CI unless necessary; it can leave iptables chains half-initialized and cause `docker compose` network creation to fail.
-- Use the preinstalled Docker on `ubuntu-latest` runners for the install test.
+Pitfall: do **not** use `docker/setup-docker-action@v4` in CI; it can leave
+iptables chains half-initialized so `docker compose` cannot create networks. Use
+the Docker preinstalled on `ubuntu-latest` runners.

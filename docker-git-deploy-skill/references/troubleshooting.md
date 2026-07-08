@@ -1,62 +1,86 @@
-# Docker Git Deploy — Troubleshooting
+# docker-git-deploy — Troubleshooting
 
-## "Already up to date" but services did not restart
+## Force a redeploy without a new commit
 
-`deploy.sh` only runs `docker compose up` when the local HEAD changes. If you want to force a redeploy (e.g., upstream image tag mutated), run:
-
-```bash
-./scripts/deploy.sh --force
-```
-
-## Compose validation fails on host but passes locally
-
-The target host may be running a different Docker Compose plugin version. Keep `compose.yaml` compatible with Compose spec 3.8+ and test on the host version before pushing.
-
-## Health check fails after deploy
-
-Check service logs:
+`deploy` always reconciles the stack, but only pulls images when the commit
+changed. To re-pull and re-apply anyway (e.g. a `:latest` tag moved):
 
 ```bash
-docker compose logs --tail=100 <service>
+docker-git-deploy deploy --force
 ```
 
-## Deploy loop pulling same commit
+## Stack did not become healthy / deploy rolled back
 
-This usually means the timer interval is too short and the previous deploy has not finished. Increase `OnUnitInactiveSec` in the systemd timer.
+`deploy` runs `docker compose up -d --wait`. If a container never reports
+healthy within `WAIT_TIMEOUT` (default 120s), the deploy fails; if the failure
+followed a new commit, it rolls back to the previous commit automatically.
+Inspect the failing service:
 
-## Permission denied on data directories
+```bash
+docker-git-deploy logs --tail=100 <service>
+```
 
-The target host user running Docker Compose needs read/write access to bind-mounted directories. Pre-create directories with the correct UID/GID if the container runs as non-root.
+Raise the timeout for slow-starting stacks:
 
-## Bootstrap succeeded but nothing is deploying
+```bash
+WAIT_TIMEOUT=300 docker-git-deploy deploy --force
+```
 
-Confirm the timer is enabled and running:
+## autoheal is not restarting a container
+
+autoheal only watches a container when it **both** carries the watch label and
+defines a healthcheck:
+
+```yaml
+    labels:
+      - autoheal=true          # must match AUTOHEAL_CONTAINER_LABEL
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+```
+
+Confirm autoheal is running and check its logs: `docker-git-deploy logs autoheal`.
+
+## Nothing deploys after bootstrap
+
+The deploy is skipped until `<deployment-dir>/.env` exists. Create it, then
+confirm the timer:
 
 ```bash
 systemctl list-timers docker-git-deploy.timer
 journalctl -u docker-git-deploy.service -n 50
 ```
 
+## Wrong poll interval
+
+The interval is baked into the timer at install time from `--interval`. Change
+it by editing `OnUnitInactiveSec` in `/etc/systemd/system/docker-git-deploy.timer`,
+then `systemctl daemon-reload`. Verify with `systemctl cat docker-git-deploy.timer`.
+
 ## `.env` values not picked up
 
-Docker Compose reads `.env` from the working directory of the command. If you run `docker compose` from a subdirectory, it will not see the root `.env`. The systemd unit sets `WorkingDirectory` correctly; verify with `systemctl cat docker-git-deploy.service`.
+Compose reads `.env` from its working directory. The systemd service sets
+`WorkingDirectory` to the deployment directory, and the CLI also `cd`s there, so
+this should be correct — verify with `systemctl cat docker-git-deploy.service`.
 
-## GitHub Actions install test fails with iptables chain error
+## Permission denied on bind-mounted data
 
-If the workflow uses `docker/setup-docker-action@v4`, a custom Docker daemon may start without fully initializing iptables chains. Compose then fails with:
+When running as the unprivileged `docker-git-deploy` user, pre-create
+bind-mounted directories with the right UID/GID, or run `--user root`.
+
+## GitHub Actions install test fails with an iptables chain error
+
+If a workflow uses `docker/setup-docker-action@v4`, a custom daemon can start
+without initializing iptables, and Compose fails with:
 
 ```
-failed to create network docker-git-deploy_default:
+failed to create network ..._default:
   Chain 'DOCKER-ISOLATION-STAGE-2' does not exist
 ```
 
-Fix: remove `docker/setup-docker-action@v4` and rely on the Docker that is preinstalled on `ubuntu-latest` GitHub runners.
+Fix: drop that action and use the Docker preinstalled on `ubuntu-latest`.
 
-## CI fails but it looks like a networking error
+## CI fails and looks like a network error
 
-GitHub runner networking is rarely the cause. Inspect the workflow logs. Common culprits:
-
-- Custom Docker setup action breaking iptables (see above)
-- Missing env vars required for `docker compose config` validation
-- Using `docker-compose` (legacy binary) instead of `docker compose` (plugin)
-- `docker compose` trying to create networks before the daemon is ready
+Runner networking is rarely the cause. Common culprits: the setup-docker action
+above, missing env vars for `docker compose config`, or `docker-compose` (legacy
+binary) instead of `docker compose`.

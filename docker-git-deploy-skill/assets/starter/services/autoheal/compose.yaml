@@ -1,0 +1,23 @@
+services:
+  autoheal:
+    image: ${AUTOHEAL_IMAGE:-willfarrell/autoheal:latest}
+    container_name: autoheal
+    restart: unless-stopped
+    environment:
+      # Only containers carrying this label are watched. Set to "all" to watch
+      # every container that defines a healthcheck.
+      AUTOHEAL_CONTAINER_LABEL: ${AUTOHEAL_CONTAINER_LABEL:-autoheal}
+      # Seconds between health polls.
+      AUTOHEAL_INTERVAL: ${AUTOHEAL_INTERVAL:-5}
+      # Grace period (s) after a container starts before it may be restarted.
+      AUTOHEAL_START_PERIOD: ${AUTOHEAL_START_PERIOD:-0}
+      # Stop timeout (s) when restarting an unhealthy container.
+      AUTOHEAL_DEFAULT_STOP_TIMEOUT: ${AUTOHEAL_DEFAULT_STOP_TIMEOUT:-10}
+      TZ: ${TZ:-UTC}
+    volumes:
+      # Read/write access to the Docker socket is required so autoheal can
+      # restart containers. NOTE: this grants the container root-equivalent
+      # control of the host daemon (see references/security-model.md).
+      - /var/run/docker.sock:/var/run/docker.sock
+    security_opt:
+      - no-new-privileges:true

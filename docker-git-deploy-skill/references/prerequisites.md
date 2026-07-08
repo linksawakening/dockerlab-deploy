@@ -1,101 +1,74 @@
-# Docker Git Deploy — Target Host Prerequisites
+# docker-git-deploy — Target Host Prerequisites
 
-Before bootstrapping a target host with `scripts/install-host.sh`, ensure the following base requirements are met. The agent can help guide preparation, but these are system-level responsibilities of the host administrator.
+Before bootstrapping a host with `docker-git-deploy-skill/scripts/install.sh`,
+the following must already be in place. The agent cannot install these on the
+production host — they are the host administrator's responsibility.
 
 ## Required
 
-### 1. Linux host with systemd
+### 1. Linux with systemd
+`install.sh` creates a systemd service and timer.
 
-The install script creates a systemd service and timer. Your host must use systemd.
-
-### 2. Docker Engine
-
-Docker must be installed and the daemon must be running.
-
+### 2. Docker Engine (daemon running)
 ```bash
 sudo systemctl status docker
 ```
 
-The deployment user must be able to run `docker` commands. Either:
-
-- Run the timer as `root`, or
-- Add the service user to the `docker` group:
-
-```bash
-sudo usermod -aG docker docker-git-deploy
-```
-
-### 3. Docker Compose plugin
-
-The `docker compose` command (v2 plugin) must be available, not the legacy `docker-compose` binary.
-
+### 3. Docker Compose plugin v2.1.1+
+The deploy uses `docker compose up --wait`, which needs a reasonably recent v2
+plugin (not the legacy `docker-compose` binary).
 ```bash
 docker compose version
 ```
 
 ### 4. git
-
 ```bash
 git --version
 ```
 
 ### 5. curl
-
-Used by health checks and validation.
-
 ```bash
 curl --version
 ```
 
-### 6. Outbound HTTPS to GitHub
-
-The host must be able to clone or fetch from GitHub over HTTPS (or SSH if using a deploy key).
-
+### 6. Outbound HTTPS to your git host
+The host must be able to fetch the deployment repo from your git host over HTTPS
+(or SSH with a deploy key). Any git remote works — GitHub, GitLab, Bitbucket, or
+self-hosted. No inbound ports are required.
 ```bash
-curl -I https://github.com
+curl -I https://<your-git-host>
 ```
 
-### 7. Deployment directory
+## How install.sh handles the deployment user
 
-Pick a persistent directory such as `/opt/docker-git-deploy` and ensure the deployment user can write to it.
+By default `install.sh` runs the deploy as an unprivileged system user
+(`docker-git-deploy`), which it creates and adds to the `docker` group. You do
+not need to create it yourself. To run privileged instead, pass `--user root`.
 
 ```bash
-sudo mkdir -p /opt/docker-git-deploy
-sudo chown docker-git-deploy:docker-git-deploy /opt/docker-git-deploy
+curl -fsSL https://raw.githubusercontent.com/linksawakening/docker-git-deploy/main/docker-git-deploy-skill/scripts/install.sh | \
+  bash -s -- \
+    --deployment-repo <your-deployment-repo-git-url> \
+    --deployment-dir /opt/<host>-deploy \
+    --user docker-git-deploy \
+    --interval 5min
 ```
 
 ## Recommended
 
-### Dedicated deployment user
-
-Create an unprivileged user for the deployment timer:
-
-```bash
-sudo useradd -r -s /usr/sbin/nologin -m -d /opt/docker-git-deploy docker-git-deploy
-```
-
-When running `install-host.sh`, set:
-
-```bash
-DOCKER_DEPLOY_USER=docker-git-deploy DOCKER_DEPLOY_REPO_DIR=/opt/docker-git-deploy ./scripts/install-host.sh
-```
-
 ### Read-only repository access
+Use a **read-only deploy key** (SSH) on your git host, or, for HTTPS, a token
+scoped to read-only on the deployment repo only (e.g. a GitHub fine-grained PAT
+with `contents:read`, a GitLab deploy token, or a Bitbucket app password).
 
-Use a GitHub deploy key with **read-only** access. If using HTTPS, create a fine-grained PAT with only `contents:read` for this repo.
-
-### Separate secrets management
-
-Keep real `.env` values outside the repo. Options:
-
-- Manually create `/opt/docker-git-deploy/.env` after cloning.
-- Use a separate private secrets repo and symlink `.env`.
-- Use a secrets manager such as Bitwarden or HashiCorp Vault if available.
+### Secrets stay off Git
+Keep real values out of the repo. Create `<deployment-dir>/.env` on the host
+after cloning (from `.env.example`), or source it from a secrets manager. The
+deploy will not run until `.env` exists.
 
 ## Verification checklist
 
-- [ ] `docker compose version` returns v2.x
-- [ ] `docker ps` runs without `sudo` (or timer will run as root)
+- [ ] `docker compose version` returns v2.1.1 or newer
+- [ ] Docker daemon is running
 - [ ] `git clone <repo-url>` succeeds from the host
-- [ ] Deployment directory exists and is writable by the chosen user
-- [ ] `.env` file created from `.env.example` with real values
+- [ ] `.env` created from `.env.example` with real values
