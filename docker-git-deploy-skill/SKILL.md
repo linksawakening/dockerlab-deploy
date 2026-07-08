@@ -16,20 +16,21 @@ services on a homelab or production host.
 
 ## What docker-git-deploy is
 
-A lightweight pull-based GitOps tool for a single host. The agent edits a
-**deployment repo** (pure config); the production host runs a systemd timer that
-pulls the repo and reconciles the Docker Compose stack. The agent never needs
-SSH or Docker access to the host after the one-line bootstrap.
+A lightweight pull-based GitOps tool for a single host. You (the agent) edit a
+**deployment repo** — a pure-config Git repo the user owns. The production host
+runs a systemd timer that pulls that repo and reconciles the Docker Compose
+stack. You never need SSH or Docker access to the host after the one-line
+bootstrap.
 
-**This repository is the skill and its tooling only** — it has no compose config
-at its root. Everything lives under `docker-git-deploy-skill/`, and the
-canonical example is a bundled starter at `assets/starter/`.
+You work with two things:
 
-| Part | Where | Contains |
-|------|-------|----------|
-| Skill + framework | `docker-git-deploy-skill/` | `SKILL.md`, `scripts/`, `assets/`, `references/` |
-| Starter / example | `docker-git-deploy-skill/assets/starter/` | Pure-config example (autoheal); also the CI fixture |
-| User deployment repo | the user's own repo | Generated from the starter; pure config |
+- **The framework** — this skill's bundled tooling. Run
+  `scripts/init-deployment.sh` to scaffold a deployment repo,
+  `scripts/validate-repo-structure.sh` to check it, and `scripts/install.sh` to
+  bootstrap the host once. You invoke it; you don't edit it.
+- **The deployment repo** — what you create and keep editing on the user's
+  behalf. It is **pure config**: `compose.yaml`, `.env.example`, and
+  `services/`. Never put scripts, systemd units, or a real `.env` in it.
 
 ## When to use this skill
 
@@ -60,30 +61,25 @@ The deploy is a **declarative reconcile**: `docker compose up -d --remove-orphan
 and self-heals crashes); images are pulled only on a new commit or `--force`; a
 failed update rolls back to the previous commit.
 
-## Repo layout
+## The deployment repo you create
+
+Everything you generate and edit for the user lives here — pure config, nothing
+executable:
 
 ```text
-docker-git-deploy/                       # this repo = the skill package
-├── README.md · LICENSE · .gitignore
-├── .github/workflows/
-│   ├── validate.yaml                    # lint the starter compose
-│   └── install-test.yaml                # install → deploy → assert healthy
-└── docker-git-deploy-skill/
-    ├── SKILL.md                          # <-- the only SKILL.md in the repo
-    ├── references/
-    │   ├── prerequisites.md
-    │   ├── security-model.md
-    │   ├── design-constraints.md
-    │   └── troubleshooting.md
-    ├── scripts/
-    │   ├── install.sh                    # one-command production install
-    │   ├── docker-git-deploy             # CLI (deploy/validate/test/logs/status)
-    │   ├── init-deployment.sh            # generate a deployment repo from the starter
-    │   └── validate-repo-structure.sh    # check a deployment repo is pure config
-    └── assets/
-        ├── systemd/                      # docker-git-deploy.service.in / .timer.in
-        └── starter/                      # pure-config example == starter == CI fixture
+<repo>/                      # the user's deployment repo (pure config)
+├── compose.yaml             # index: one `include:` line per service
+├── .env.example             # every variable the services read (placeholders only)
+├── .gitignore               # must ignore .env
+├── README.md                # host-specific bootstrap command
+└── services/
+    └── <name>/compose.yaml  # one directory per service
 ```
+
+The framework's own tooling — the CLI, systemd unit templates, and the starter
+template you scaffold from — lives in this skill under `scripts/` and `assets/`.
+You invoke it but never edit it, and none of it is copied into the deployment
+repo.
 
 ## Agent adoption flow
 
@@ -183,20 +179,22 @@ journalctl -u docker-git-deploy.service -f
 2. Push. `up -d --remove-orphans` cleans up the stopped service automatically.
 
 ## Common pitfalls
-- Forgetting to create `.env` on the host (deploy is skipped until it exists).
-- Committing a real `.env`. Ensure `.gitignore` includes `.env`.
+- Forgetting to create `.env` on the host — the deploy is skipped until it exists.
+- Putting a real `.env`, scripts, or systemd units in the deployment repo — it
+  must stay pure config. Make sure `.gitignore` ignores `.env`.
+- Referencing a variable in a compose file without adding it to `.env.example`.
+- Adding a service under `services/` but forgetting the `include:` line in
+  `compose.yaml` — it will not deploy.
+- Editing config directly on the host — the next pull runs `git reset --hard` and
+  overwrites it. Always change the repo, never the host.
+- autoheal not restarting a container: it needs **both** the `autoheal=true` label
+  and a `healthcheck:`.
 - Using legacy `docker-compose` instead of the `docker compose` plugin.
-- Running the install command without root.
-- autoheal not restarting a container: it needs **both** `autoheal=true` and a
-  `healthcheck:`.
-- Putting scripts or systemd units in the deployment repo — keep it pure config;
-  all tooling lives in `docker-git-deploy-skill/`.
-- More than one `SKILL.md` in the repo. There must be exactly one, here.
-- Using `docker/setup-docker-action@v4` in CI (iptables breakage).
+- Running the bootstrap install command without root.
 
 ## References
 - `references/prerequisites.md` — host requirements
 - `references/security-model.md` — pull model, credential scopes, docker.sock caveat
-- `references/design-constraints.md` — architectural guardrails
+- `references/design-constraints.md` — why deployment repos stay pure config
 - `references/troubleshooting.md` — failure modes, `--wait`/rollback, CI iptables
 - `scripts/validate-repo-structure.sh` — verify a deployment repo is pure config
