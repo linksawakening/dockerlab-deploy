@@ -1,0 +1,9 @@
+# Shell scripts, systemd unit templates, and compose/config files must use LF
+# so they work on the Linux hosts and CI runners that consume them, regardless
+# of the author's platform.
+* text=auto eol=lf
+*.sh text eol=lf
+*.in text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+docker-git-deploy-skill/scripts/docker-git-deploy text eol=lf

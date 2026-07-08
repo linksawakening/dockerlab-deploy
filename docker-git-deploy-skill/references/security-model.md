@@ -1,22 +1,44 @@
-# Docker Git Deploy — Security Model
+# docker-git-deploy — Security Model
 
-## Threat: agent compromise
+## Why pull-based
 
-If the agent editing the repo is compromised, an attacker can push malicious compose files or mount paths. Mitigations:
+The agent and CI only ever edit the **deployment repo**. The production host
+**pulls** and applies changes on a timer. Consequences:
 
-- Branch protection on `main` with required PR reviews.
-- CI validation runs on every PR.
-- The target host runs as an unprivileged user where possible.
-- `.env` secrets are never in the repo.
+- No SSH or Docker access to the host is handed to the agent or CI.
+- The host needs only **outbound HTTPS** to GitHub — no inbound ports.
+- The only credential on the host is **read-only** Git access to the repo.
+
+## Threat: compromised agent or repo write access
+
+An attacker who can push to the deployment repo can push malicious compose files
+or bind-mount paths. Mitigations:
+
+- Branch protection on `main` with required PR review.
+- CI validation (`validate` + `install-test`) on every PR.
+- The deploy runs as an **unprivileged user** by default (see below).
+- Real secrets live only in the host's `.env`, never in the repo.
+
+## Deployment user
+
+By default the systemd timer runs as the unprivileged `docker-git-deploy` user,
+which `install.sh` adds to the `docker` group. Note that Docker group
+membership is effectively root-equivalent on the host (it grants full control of
+the Docker daemon) — this is inherent to running Docker workloads and is why
+repo write access and the `.env` must be protected. Passing `--user root` runs
+the timer as root explicitly.
+
+## Caveat: the docker socket (autoheal and similar)
+
+The starter's `autoheal` service bind-mounts `/var/run/docker.sock` so it can
+restart unhealthy containers. Any container with the socket mounted has
+root-equivalent control of the host daemon. Only mount the socket into images
+you trust, and pin them by digest if you expose the host to untrusted input.
 
 ## Credential scopes
 
-| Credential | Scope | Notes |
-|------------|-------|-------|
-| Deploy key (SSH) | Read-only access to deploy repo | Stored in `~/.ssh` on target host. |
-| GitHub PAT | `contents:read` only | Only if HTTPS polling is preferred. |
-| `.env` values | Local to target host | Created manually or via a separate secrets mechanism. |
-
-## Network exposure
-
-This pattern requires only outbound HTTPS from target host to GitHub. No inbound ports need to be open.
+| Credential        | Scope                              | Notes |
+|-------------------|------------------------------------|-------|
+| Deploy key (SSH)  | Read-only on the deployment repo   | Stored in the deploy user's `~/.ssh`. |
+| GitHub PAT (HTTPS)| `contents:read` only               | Only if HTTPS polling is preferred over SSH. |
+| `.env` values     | Local to the host                  | Created manually or from a secrets manager; never committed. |

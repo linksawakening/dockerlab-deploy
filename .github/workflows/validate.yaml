@@ -11,9 +11,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Validate compose syntax
+
+      - name: Validate starter compose syntax
+        working-directory: docker-git-deploy-skill/assets/starter
         run: docker compose config >/dev/null
-        env:
-          EXAMPLE_IMAGE: nginx:alpine
-          EXAMPLE_PORT: 8080
-          EXAMPLE_FOO: default
+
+      - name: Shell script syntax check
+        run: |
+          for f in docker-git-deploy-skill/scripts/*; do
+            echo "checking $f"
+            bash -n "$f"
+          done

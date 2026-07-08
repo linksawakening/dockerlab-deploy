@@ -1,4 +1,0 @@
-name: docker-git-deploy
-
-include:
-  - services/searxng/compose.yaml

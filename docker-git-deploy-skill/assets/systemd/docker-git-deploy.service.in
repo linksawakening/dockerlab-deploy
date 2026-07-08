@@ -1,0 +1,11 @@
+[Unit]
+Description=Docker Git Deploy (pull-based GitOps reconcile)
+After=network-online.target docker.service
+Wants=network-online.target
+# @@DEPLOY_USER@@ and @@DEPLOYMENT_DIR@@ are substituted by install.sh.
+
+[Service]
+Type=oneshot
+User=@@DEPLOY_USER@@
+WorkingDirectory=@@DEPLOYMENT_DIR@@
+ExecStart=/usr/local/bin/docker-git-deploy deploy

@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Docker Git Deploy periodically
+
+[Timer]
+OnBootSec=1min
+# @@POLL_INTERVAL@@ is substituted by install.sh (e.g. 5min).
+OnUnitInactiveSec=@@POLL_INTERVAL@@
+Persistent=true
+
+[Install]
+WantedBy=timers.target

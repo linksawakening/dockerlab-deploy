@@ -1,0 +1,6 @@
+name: docker-git-deploy
+
+# Root compose is an index: it includes one file per service.
+# Add services under services/<name>/compose.yaml and include them here.
+include:
+  - services/autoheal/compose.yaml
