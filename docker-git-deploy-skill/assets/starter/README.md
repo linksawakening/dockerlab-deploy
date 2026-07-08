@@ -53,9 +53,10 @@ Run as root on the production host (the generated README from
 `init-deployment.sh` fills in your URLs):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/<org>/docker-git-deploy/main/docker-git-deploy-skill/scripts/install.sh | \
+# --deployment-repo takes any git URL (GitHub, GitLab, Bitbucket, self-hosted).
+curl -fsSL https://raw.githubusercontent.com/linksawakening/docker-git-deploy/main/docker-git-deploy-skill/scripts/install.sh | \
   bash -s -- \
-    --deployment-repo https://github.com/<org>/<this-repo>.git \
+    --deployment-repo <this-repo-git-url> \
     --deployment-dir /opt/<host>-deploy \
     --interval 5min
 ```

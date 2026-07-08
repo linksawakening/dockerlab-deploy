@@ -6,7 +6,7 @@ The agent and CI only ever edit the **deployment repo**. The production host
 **pulls** and applies changes on a timer. Consequences:
 
 - No SSH or Docker access to the host is handed to the agent or CI.
-- The host needs only **outbound HTTPS** to GitHub — no inbound ports.
+- The host needs only **outbound HTTPS** to the git host — no inbound ports.
 - The only credential on the host is **read-only** Git access to the repo.
 
 ## Threat: compromised agent or repo write access
@@ -39,6 +39,6 @@ you trust, and pin them by digest if you expose the host to untrusted input.
 
 | Credential        | Scope                              | Notes |
 |-------------------|------------------------------------|-------|
-| Deploy key (SSH)  | Read-only on the deployment repo   | Stored in the deploy user's `~/.ssh`. |
-| GitHub PAT (HTTPS)| `contents:read` only               | Only if HTTPS polling is preferred over SSH. |
+| Deploy key (SSH)  | Read-only on the deployment repo   | Stored in the deploy user's `~/.ssh`. Works on any git host. |
+| Token (HTTPS)     | Read-only on the deployment repo   | If HTTPS is preferred over SSH — e.g. GitHub fine-grained PAT (`contents:read`), GitLab deploy token, Bitbucket app password. |
 | `.env` values     | Local to the host                  | Created manually or from a secrets manager; never committed. |

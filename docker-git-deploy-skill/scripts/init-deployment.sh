@@ -8,7 +8,9 @@ set -euo pipefail
 #   --target-dir <dir>   Where to create the new deployment repo
 #   --repo-name <name>   GitHub repo name (for the bootstrap URL)
 #   --host-name <host>   Production host name (for docs)
-#   --org <org>          GitHub org/user (for the bootstrap URL)
+#   --org <org>          Git host org/user (for the example URLs)
+#   --repo-url <url>     Full git URL of the deployment repo (any git host).
+#                        Defaults to https://github.com/<org>/<repo>.git
 
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"  # .../docker-git-deploy-skill
 STARTER_DIR="$SKILL_DIR/assets/starter"
@@ -20,6 +22,7 @@ TARGET_DIR="${TARGET_DIR:-}"
 REPO_NAME="${REPO_NAME:-}"
 HOST_NAME="${HOST_NAME:-}"
 ORG="${ORG:-}"
+REPO_URL="${REPO_URL:-}"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -27,6 +30,7 @@ while [[ $# -gt 0 ]]; do
         --repo-name) REPO_NAME="$2"; shift 2 ;;
         --host-name) HOST_NAME="$2"; shift 2 ;;
         --org) ORG="$2"; shift 2 ;;
+        --repo-url) REPO_URL="$2"; shift 2 ;;
         -h|--help) grep '^#' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) fail "Unknown argument: $1" ;;
     esac
@@ -37,14 +41,17 @@ done
 # Prompt for anything still missing (skipped in non-interactive contexts where
 # all values are supplied via flags or env).
 [[ -z "$TARGET_DIR" ]] && read -rp "Target directory for deployment repo: " TARGET_DIR
-[[ -z "$REPO_NAME"  ]] && read -rp "GitHub repo name: " REPO_NAME
+[[ -z "$REPO_NAME"  ]] && read -rp "Deployment repo name: " REPO_NAME
 [[ -z "$HOST_NAME"  ]] && read -rp "Production host name: " HOST_NAME
-[[ -z "$ORG"        ]] && read -rp "GitHub org/user: " ORG
+[[ -z "$ORG"        ]] && read -rp "Git host org/user: " ORG
 
 [[ -n "$TARGET_DIR" ]] || fail "target-dir is required"
 [[ -n "$REPO_NAME"  ]] || fail "repo-name is required"
 [[ -n "$HOST_NAME"  ]] || fail "host-name is required"
 [[ -n "$ORG"        ]] || fail "org is required"
+
+# Deployment repo URL: any git host. Default to a GitHub HTTPS URL from --org.
+REPO_URL="${REPO_URL:-https://github.com/$ORG/$REPO_NAME.git}"
 
 TARGET_DIR="$(cd "$(dirname "$TARGET_DIR")" && pwd)/$(basename "$TARGET_DIR")"
 [[ -e "$TARGET_DIR" ]] && fail "$TARGET_DIR already exists"
@@ -63,9 +70,9 @@ polls this repo and applies \`compose.yaml\` automatically.
 Run as root:
 
 \`\`\`bash
-curl -fsSL https://raw.githubusercontent.com/$ORG/docker-git-deploy/main/docker-git-deploy-skill/scripts/install.sh | \\
+curl -fsSL https://raw.githubusercontent.com/linksawakening/docker-git-deploy/main/docker-git-deploy-skill/scripts/install.sh | \\
   bash -s -- \\
-    --deployment-repo https://github.com/$ORG/$REPO_NAME.git \\
+    --deployment-repo $REPO_URL \\
     --deployment-dir /opt/$REPO_NAME \\
     --interval 5min
 \`\`\`
@@ -92,6 +99,6 @@ log ""
 log "Next steps:"
 log "  1. cd $TARGET_DIR"
 log "  2. git init && git add . && git commit -m 'initial docker-git-deploy deploy'"
-log "  3. git remote add origin https://github.com/$ORG/$REPO_NAME.git"
+log "  3. git remote add origin $REPO_URL"
 log "  4. git push -u origin main"
 log "  5. Give the README bootstrap command to run on $HOST_NAME"

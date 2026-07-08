@@ -1,12 +1,11 @@
 ---
 name: docker-git-deploy-skill
-description: Hermes agent skill for docker-git-deploy. Deploy Docker Compose services with pull-based GitOps. Helps the user generate a pure-config deployment repo, add services, test locally, and bootstrap a production host that self-heals with autoheal.
+description: Agent skill for docker-git-deploy. Deploy Docker Compose services with pull-based GitOps. Helps the user generate a pure-config deployment repo, add services, test locally, and bootstrap a production host that self-heals with autoheal.
 version: 4.0.0
 author: linksawakening
 license: MIT
 metadata:
-  hermes:
-    tags: [devops, docker, docker-compose, gitops, self-hosting, homelab, deployment]
+  tags: [devops, docker, docker-compose, gitops, self-hosting, homelab, deployment]
 ---
 
 # docker-git-deploy-skill
@@ -42,7 +41,7 @@ canonical example is a bundled starter at `assets/starter/`.
 ## Install the skill
 
 ```bash
-npx skills add https://github.com/linksawakening/docker-git-deploy --skill docker-git-deploy-skill -a hermes-agent -g -y --copy
+npx skills add https://github.com/linksawakening/docker-git-deploy --skill docker-git-deploy-skill -a <your-agent> -g -y --copy
 ```
 
 ## Core architecture
@@ -90,9 +89,9 @@ docker-git-deploy/                       # this repo = the skill package
 
 ### 1. Explain prerequisites
 Target host needs: Linux + systemd, Docker Engine running, Docker Compose plugin
-**v2.1.1+** (the deploy uses `up --wait`), git, curl, and outbound HTTPS to
-GitHub. The agent cannot install these; point the user to
-`references/prerequisites.md`.
+**v2.1.1+** (the deploy uses `up --wait`), git, curl, and outbound HTTPS to the
+git host (any git remote — GitHub, GitLab, Bitbucket, self-hosted). The agent
+cannot install these; point the user to `references/prerequisites.md`.
 
 ### 2. Interview the user
 
@@ -100,7 +99,7 @@ GitHub. The agent cannot install these; point the user to
 |----------|---------|----------|
 | Production host name? | none | docs / repo name |
 | Deployment repo name? | `<host>-deploy` | private repo name |
-| GitHub org/user? | user's own | repo URLs |
+| Git host + org/user? | user's own | repo URLs (GitHub, GitLab, Bitbucket, ...) |
 | Deployment directory on host? | `/opt/<repo>` | clone target |
 | Deploy user? | `docker-git-deploy` (unprivileged) | systemd `User=` |
 | Poll interval? | `5min` | systemd timer |
@@ -109,12 +108,13 @@ GitHub. The agent cannot install these; point the user to
 ### 3. Generate the deployment repo
 
 ```bash
-FRAMEWORK=~/.hermes/skills/devops/docker-git-deploy/docker-git-deploy-skill
+# Point FRAMEWORK at wherever your agent installed this skill.
+FRAMEWORK=<skill-install-dir>/docker-git-deploy-skill
 "$FRAMEWORK/scripts/init-deployment.sh" \
   --target-dir ~/my-host-deploy \
   --repo-name my-host-deploy \
   --host-name my-host \
-  --org my-github-org
+  --org my-org
 ```
 
 Run with no flags for interactive prompts. This copies `assets/starter/`
@@ -139,21 +139,26 @@ docker compose config >/dev/null && echo Valid
 ```bash
 cd <deployment-repo>
 git init && git add . && git commit -m "initial docker-git-deploy deploy"
-git remote add origin https://github.com/<org>/<repo>.git
+# Any git remote works — GitHub, GitLab, Bitbucket, or self-hosted:
+git remote add origin <your-deployment-repo-git-url>
 git push -u origin main
 ```
 
 ### 7. Bootstrap the production host (run as root)
 ```bash
-curl -fsSL https://raw.githubusercontent.com/<org>/docker-git-deploy/main/docker-git-deploy-skill/scripts/install.sh | \
+curl -fsSL https://raw.githubusercontent.com/linksawakening/docker-git-deploy/main/docker-git-deploy-skill/scripts/install.sh | \
   bash -s -- \
-    --deployment-repo https://github.com/<org>/<repo>.git \
+    --deployment-repo <your-deployment-repo-git-url> \
     --deployment-dir /opt/<repo> \
     --user docker-git-deploy \
     --interval 5min
 ```
-For SSH, use `git@github.com:<org>/<repo>.git`. For a privileged deploy, use
-`--user root`. Then the user creates `.env`:
+`--deployment-repo` accepts any git URL — HTTPS
+(`https://<host>/<org>/<repo>.git`) or SSH (`git@<host>:<org>/<repo>.git`) on
+GitHub, GitLab, Bitbucket, or self-hosted. The framework installer is fetched
+from GitHub; clone it and run `install.sh` locally, or point `--framework-repo`
+at a mirror, if you prefer. For a privileged deploy, use `--user root`. Then the
+user creates `.env`:
 ```bash
 sudo cp /opt/<repo>/.env.example /opt/<repo>/.env
 sudo nano /opt/<repo>/.env

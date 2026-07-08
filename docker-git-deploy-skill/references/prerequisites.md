@@ -31,11 +31,12 @@ git --version
 curl --version
 ```
 
-### 6. Outbound HTTPS to GitHub
-The host must be able to fetch from GitHub over HTTPS (or SSH with a deploy key).
-No inbound ports are required.
+### 6. Outbound HTTPS to your git host
+The host must be able to fetch the deployment repo from your git host over HTTPS
+(or SSH with a deploy key). Any git remote works — GitHub, GitLab, Bitbucket, or
+self-hosted. No inbound ports are required.
 ```bash
-curl -I https://github.com
+curl -I https://<your-git-host>
 ```
 
 ## How install.sh handles the deployment user
@@ -45,9 +46,9 @@ By default `install.sh` runs the deploy as an unprivileged system user
 not need to create it yourself. To run privileged instead, pass `--user root`.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/<org>/docker-git-deploy/main/docker-git-deploy-skill/scripts/install.sh | \
+curl -fsSL https://raw.githubusercontent.com/linksawakening/docker-git-deploy/main/docker-git-deploy-skill/scripts/install.sh | \
   bash -s -- \
-    --deployment-repo https://github.com/<org>/<repo>.git \
+    --deployment-repo <your-deployment-repo-git-url> \
     --deployment-dir /opt/<host>-deploy \
     --user docker-git-deploy \
     --interval 5min
@@ -56,8 +57,9 @@ curl -fsSL https://raw.githubusercontent.com/<org>/docker-git-deploy/main/docker
 ## Recommended
 
 ### Read-only repository access
-Use a GitHub **deploy key** with read-only access, or, for HTTPS, a fine-grained
-PAT scoped to `contents:read` on the deployment repo only.
+Use a **read-only deploy key** (SSH) on your git host, or, for HTTPS, a token
+scoped to read-only on the deployment repo only (e.g. a GitHub fine-grained PAT
+with `contents:read`, a GitLab deploy token, or a Bitbucket app password).
 
 ### Secrets stay off Git
 Keep real values out of the repo. Create `<deployment-dir>/.env` on the host
